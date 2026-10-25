@@ -67,7 +67,10 @@ def health():
 
 @app.get('/api/ready')
 def ready():
-    return {'ready': engine.mode == 'demo' or engine.exchange_connected, 'execution_enabled': engine.mode == 'demo'}
+    state=engine.snapshot()
+    return {'ready': engine.mode == 'demo' or engine.exchange_connected,
+            'execution_enabled': state['execution_enabled'],
+            'trading_ready': engine.mode == 'demo' or bool(engine.trader.preflight['ready'])}
 
 
 @app.get('/api/snapshot')
@@ -86,7 +89,11 @@ async def markets():
     if engine.mode == 'demo':
         return [{'symbol': 'BTCUSD', 'contract_value': '0.001', 'quantity_step': 1, 'mode': 'demo'}]
     try:
-        return await engine.delta.products()
+        products = await engine.delta.products()
+        return [{'symbol': p['symbol'], 'contract_value': p['contract_value'], 'tick_size': p['tick_size'], 'mode': 'testnet'}
+                for p in products if p.get('state')=='live' and p.get('contract_type')=='perpetual_futures'
+                and p.get('notional_type')=='vanilla' and (p.get('settling_asset') or {}).get('symbol')=='USD'
+                and (p.get('quoting_asset') or {}).get('symbol')=='USD']
     except Exception:
         raise HTTPException(503, 'Unable to retrieve Testnet instruments')
 
@@ -114,11 +121,16 @@ def config():
 @app.put('/api/strategy/config', response_model=StrategyConfig)
 async def save_config(config: StrategyConfig):
     async with engine.lock:
-        if engine.status == 'RUNNING' or engine.position:
+        if engine.status == 'RUNNING' or engine.position or engine.exchange_positions:
             raise ValueError('Stop the strategy and wait for positions to close before changing configuration')
         if engine.mode == 'demo' and config.symbol != 'BTCUSD':
             raise ValueError('Demo supports BTCUSD only')
-        changed = config.timeframe != engine.config.timeframe
+        changed = config.timeframe != engine.config.timeframe or config.symbol != engine.config.symbol
+        if engine.mode=='testnet':
+            product=await engine.delta.request('/v2/products/'+config.symbol)
+            if not (product.get('state')=='live' and product.get('contract_type')=='perpetual_futures' and product.get('notional_type')=='vanilla'
+                    and (product.get('settling_asset') or {}).get('symbol')=='USD' and (product.get('quoting_asset') or {}).get('symbol')=='USD'):
+                raise ValueError('Select a supported USD-settled linear perpetual instrument')
         engine.config = config
         if changed and engine.mode == 'demo':
             seconds = {'1m': 60, '5m': 300, '15m': 900}[config.timeframe]
@@ -126,6 +138,13 @@ async def save_config(config: StrategyConfig):
             engine.candles = [engine.demo_candle(base + i * seconds, i) for i in range(120)]
             engine.step = 120
             engine.storage.put('state', 'market', {'candles': engine.candles, 'step': engine.step})
+        if changed and engine.mode=='testnet':
+            engine.candles=[]
+            engine.last_update=None
+            engine.latest_evaluation=None
+            engine.last_observed_candle=None
+            engine.trader.product=None
+            engine.trader.preflight={'ready':False,'checks':[],'reason':'Refreshing the selected instrument'}
         engine.storage.put('config', 'strategy', config.model_dump())
         engine.emit('config_update', {'message': 'Strategy configuration saved'})
         return config
@@ -159,7 +178,7 @@ def orders(status: str | None = None, side: str | None = None, symbol: str | Non
            start: str | None = None, end: str | None = None,
            page: int = Query(1, ge=1), page_size: int = Query(25, ge=1, le=100)):
     data = [o for o in reversed(engine.orders) if (not status or o['status'] == status or
-            (status == 'OPEN' and o['status'] in ('SUBMITTED', 'ACKNOWLEDGED', 'PARTIALLY_FILLED'))) and
+            (status == 'OPEN' and o['status'] in ('OPEN', 'PENDING', 'SUBMITTED', 'ACKNOWLEDGED', 'PARTIALLY_FILLED'))) and
             (not side or o['side'] == side) and (not symbol or o['symbol'] == symbol) and
             (not start or o['timestamp'] >= start) and (not end or o['timestamp'] <= end)]
     return {'items': data[(page-1)*page_size:page*page_size], 'total': len(data), 'page': page}
@@ -186,6 +205,8 @@ async def save_risk(config: RiskConfig):
         engine.risk = config
         engine.storage.put('config', 'risk', config.model_dump())
         engine.emit('risk_config', {'message': 'Risk limits saved', **config.model_dump()})
+        if engine.trader:
+            engine.trader.update_preflight()
         return config
 
 
@@ -218,11 +239,13 @@ async def connection():
         return {'mode': 'demo', 'connected': False, 'message': 'Demo Mode uses simulated data; no exchange connection is claimed.'}
     try:
         products = await engine.delta.products()
-        await engine.delta.balances()
-        engine.exchange_connected = True
-        return {'mode': 'testnet', 'connected': True, 'message': f'Public instruments and private balances verified ({len(products)} instruments). Execution remains locked.'}
+        await engine.refresh_account()
+        if not engine.account_connected:
+            raise HTTPException(503, engine.account_error)
+        return {'mode': 'testnet', 'connected': True, 'message': f'Public instruments and private account access verified ({len(products)} instruments). Check Strategy Control preflight before starting.'}
+    except HTTPException:
+        raise
     except Exception:
-        engine.exchange_connected = False
         raise HTTPException(503, 'Testnet connection failed. Check host, API permissions and IP allowlist.')
 
 

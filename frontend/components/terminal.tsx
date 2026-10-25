@@ -61,7 +61,7 @@ const money = (n: number | undefined | null) =>
       }).format(n);
 const stamp = (s: string | undefined | null) =>
   s ? new Date(s).toLocaleTimeString([], { hour12: false }) : '—';
-const signed = (n: number | undefined) =>
+const signed = (n: number | null | undefined) =>
   n == null ? 'Unavailable' : `${n >= 0 ? '+' : ''}${money(n)}`;
 function Badge({ children, tone = 'neutral' }: { children: React.ReactNode; tone?: string }) {
   return <span className={'badge ' + tone}>{children}</span>;
@@ -112,7 +112,9 @@ export default function Terminal({ screen }: { screen: string }) {
             structuralSharing: (previous, next) => {
               const a = previous as Partial<Snapshot> | undefined,
                 b = next as Partial<Snapshot>;
-              return a?.sequence !== undefined &&
+              if (a?.as_of && b?.as_of && Date.parse(a.as_of) > Date.parse(b.as_of)) return a;
+              return a?.session_id === b?.session_id &&
+                a?.sequence !== undefined &&
                 b?.sequence !== undefined &&
                 a.sequence > b.sequence
                 ? a
@@ -163,10 +165,12 @@ function Workspace({ screen }: { screen: string }) {
     }
   }
   const stale =
+    data?.market_stale ||
     !data?.last_update ||
     Date.now() - Date.parse(data.last_update) > 30000 ||
     connection !== 'Connected';
   const latest = data?.decisions[0];
+  const evaluation = data?.latest_evaluation;
   const persistedDecision = useQuery({
     queryKey: ['decision', selected],
     queryFn: () => api<Decision>('/api/decisions/' + selected),
@@ -184,7 +188,7 @@ function Workspace({ screen }: { screen: string }) {
         onClick={() => void action('/api/strategy/start')}
       >
         <Play size={14} />
-        {busy ? 'Processing…' : 'Start strategy'}
+        {busy ? 'Processing…' : data.execution_enabled ? 'Start strategy' : 'Execution unavailable'}
       </Button>
       <Button
         variant="outline"
@@ -248,6 +252,14 @@ function Workspace({ screen }: { screen: string }) {
         <span>Strategy status</span>
         <Badge tone={data.status === 'RUNNING' ? 'green' : 'neutral'}>● {data.status}</Badge>
       </div>
+      {data.mode === 'testnet' && (
+        <p className="table-note">
+          Signal monitor: {data.strategy_monitoring ? 'ACTIVE' : 'WARMING UP'}.
+          {data.status === 'RUNNING'
+            ? ' Genuine Testnet automation is running.'
+            : ' Automation is stopped; observations do not submit orders.'}
+        </p>
+      )}
       <div className="parameter-grid">
         <div>
           <span>Fast EMA</span>
@@ -272,15 +284,43 @@ function Workspace({ screen }: { screen: string }) {
           </strong>
         </div>
       </div>
+      {evaluation && (
+        <div className="evaluation-summary">
+          <dl>
+            <dt>Latest fast / slow</dt>
+            <dd>
+              {evaluation.fast_ema.toFixed(2)} / {evaluation.slow_ema.toFixed(2)}
+            </dd>
+            <dt>Completed-candle result</dt>
+            <dd>
+              {evaluation.side}
+              {data.mode === 'testnet' ? ' · OBSERVATION' : ''}
+            </dd>
+          </dl>
+        </div>
+      )}
       <div className="protection">
         <Shield size={15} />
         <span>
           SL {data.config.stop_loss_pct}% <span className="muted"> / </span> TP{' '}
           {data.config.take_profit_pct}%
         </span>
-        <Badge tone="green">Protected</Badge>
+        <Badge tone={data.mode === 'demo' ? 'green' : 'amber'}>
+          {data.mode === 'demo' ? 'Simulated policy' : 'Policy only'}
+        </Badge>
       </div>
       {controls}
+      {data.mode === 'testnet' && data.execution_preflight && (
+        <div className="execution-preflight">
+          <Badge tone={data.execution_preflight.ready ? 'green' : 'amber'}>
+            {data.execution_preflight.ready ? 'PREFLIGHT READY' : 'START BLOCKED'}
+          </Badge>
+          <p>{data.execution_preflight.reason}</p>
+          <Link href="/risk" className="text-link">
+            Review risk limits
+          </Link>
+        </div>
+      )}
       <Link href="/strategy" className="text-link">
         Edit configuration <ChevronRight size={14} />
       </Link>
@@ -355,7 +395,11 @@ function Workspace({ screen }: { screen: string }) {
             <Badge tone="amber">{data?.mode === 'demo' ? 'DEMO MODE' : 'TESTNET'}</Badge>
             <span className="top-connection">
               <span className={stale ? 'dot amber-dot' : 'dot green-dot'} />
-              {stale ? 'Awaiting fresh data' : 'System operational'}
+              {stale
+                ? 'Awaiting fresh data'
+                : data?.mode === 'testnet'
+                  ? 'Market feed connected'
+                  : 'Demo feed connected'}
             </span>
             <button
               title="Show system notifications"
@@ -400,7 +444,7 @@ function Workspace({ screen }: { screen: string }) {
             </strong>
             <span>
               {data?.mode === 'testnet'
-                ? 'Read-only · execution locked pending account verification'
+                ? 'Genuine Testnet orders · start requires passing all execution checks'
                 : 'Deterministic walkthrough · no exchange orders · accelerated replay clock'}
             </span>
           </div>
@@ -434,6 +478,26 @@ function Workspace({ screen }: { screen: string }) {
                 <div className="callout warning">
                   {data.error ||
                     'Connection interrupted or data delayed. Displayed values may be stale.'}
+                </div>
+              )}
+              {data.mode === 'testnet' && (
+                <div className="callout warning" role="status">
+                  <Shield size={16} />
+                  <span>
+                    <strong>
+                      Account access: {data.account_connected ? 'authenticated' : 'unavailable'}.
+                    </strong>{' '}
+                    {data.account_error ||
+                      'Account data verified. Testnet daily loss includes negative USD trading cashflows, fees and funding. Session P&L begins when automation starts.'}{' '}
+                    Market data and account authentication are separate connections.
+                    {data.account_updated_at &&
+                      ` Last account snapshot: ${stamp(data.account_updated_at)}.`}
+                  </span>
+                </div>
+              )}
+              {data.execution_error && (
+                <div role="alert" className="callout warning">
+                  {data.execution_error}
                 </div>
               )}
               {(screen === 'dashboard' || screen === 'risk') && (
@@ -474,13 +538,15 @@ function Workspace({ screen }: { screen: string }) {
                         <div
                           className={
                             'metric-value ' +
-                            (i > 1
-                              ? ((i === 2
-                                  ? data.account?.unrealized_pnl
-                                  : data.account?.realized_pnl) || 0) >= 0
-                                ? 'positive'
-                                : 'negative'
-                              : '')
+                            (value === 'Unavailable'
+                              ? 'muted'
+                              : i > 1
+                                ? ((i === 2
+                                    ? data.account?.unrealized_pnl
+                                    : data.account?.realized_pnl) || 0) >= 0
+                                  ? 'positive'
+                                  : 'negative'
+                                : '')
                           }
                         >
                           {String(value)}
@@ -532,7 +598,15 @@ function Workspace({ screen }: { screen: string }) {
                           </div>
                           <p className="explanation">{latest.explanation}</p>
                           <div className="signal-footer">
-                            <Badge tone={latest.status === 'REJECTED' ? 'red' : 'green'}>
+                            <Badge
+                              tone={
+                                latest.status === 'REJECTED'
+                                  ? 'red'
+                                  : latest.status === 'OBSERVED'
+                                    ? 'cyan'
+                                    : 'green'
+                              }
+                            >
                               {latest.status}
                             </Badge>
                             <button className="text-link" onClick={() => inspect(latest.id)}>
@@ -541,8 +615,33 @@ function Workspace({ screen }: { screen: string }) {
                             </button>
                           </div>
                         </>
+                      ) : evaluation ? (
+                        <div className="evaluation-summary">
+                          <Badge>
+                            {evaluation.side} ·{' '}
+                            {data.mode === 'testnet' ? 'READ-ONLY' : 'EVALUATED'}
+                          </Badge>
+                          <p className="explanation">
+                            Monitoring completed candles. No actionable crossover on the latest
+                            candle.
+                          </p>
+                          <dl>
+                            <dt>Fast EMA {data.config.fast_period}</dt>
+                            <dd>{evaluation.fast_ema.toFixed(4)}</dd>
+                            <dt>Slow EMA {data.config.slow_period}</dt>
+                            <dd>{evaluation.slow_ema.toFixed(4)}</dd>
+                            <dt>Candle close time</dt>
+                            <dd>
+                              {new Date(
+                                (evaluation.candle_time +
+                                  { '1m': 60, '5m': 300, '15m': 900 }[data.config.timeframe]) *
+                                  1000,
+                              ).toLocaleString()}
+                            </dd>
+                          </dl>
+                        </div>
                       ) : (
-                        <Empty text="Monitoring market conditions. No actionable signal detected." />
+                        <Empty text="Waiting for strategy evaluation. Start Demo Mode automation or wait for Testnet candles." />
                       )}
                     </Panel>
                     <Panel
@@ -571,7 +670,13 @@ function Workspace({ screen }: { screen: string }) {
                   </div>
                   <Panel
                     title="Active positions"
-                    action={<Badge>{data.positions.length} OPEN</Badge>}
+                    action={
+                      <Badge>
+                        {data.mode === 'testnet' && !data.account_connected
+                          ? 'UNKNOWN'
+                          : `${data.positions.length} OPEN`}
+                      </Badge>
+                    }
                   >
                     <Positions data={data} select={setDetail} />
                   </Panel>
@@ -664,7 +769,13 @@ function Workspace({ screen }: { screen: string }) {
               {screen === 'positions' && (
                 <Panel
                   title="Open positions"
-                  action={<Badge>{data.positions.length} ACTIVE</Badge>}
+                  action={
+                    <Badge>
+                      {data.mode === 'testnet' && !data.account_connected
+                        ? 'UNKNOWN'
+                        : `${data.positions.length} ACTIVE`}
+                    </Badge>
+                  }
                 >
                   <Positions data={data} select={setDetail} />
                   <p className="table-note">
@@ -738,10 +849,13 @@ function Workspace({ screen }: { screen: string }) {
                             [
                               'Account exposure',
                               `${data.risk_config.max_exposure_pct}%`,
-                              data.account
+                              data.account?.equity != null &&
+                              data.account.equity > 0 &&
+                              data.account.exposure != null
                                 ? `${((data.account.exposure / data.account.equity) * 100).toFixed(2)}%`
                                 : 'Unavailable',
-                              !!data.account &&
+                              data.account?.exposure != null &&
+                                data.account.equity != null &&
                                 data.account.exposure <=
                                   (data.account.equity * data.risk_config.max_exposure_pct) / 100,
                             ],
@@ -749,7 +863,7 @@ function Workspace({ screen }: { screen: string }) {
                               'Daily loss',
                               money(data.risk_config.daily_loss_limit),
                               money(data.account?.daily_loss),
-                              !!data.account &&
+                              data.account?.daily_loss != null &&
                                 data.account.daily_loss < data.risk_config.daily_loss_limit,
                             ],
                             [
@@ -850,8 +964,8 @@ function Workspace({ screen }: { screen: string }) {
                               : 'Disconnected · configure backend credentials'}
                         </p>
                       </div>
-                      <Badge tone={data.exchange_connected ? 'green' : 'amber'}>
-                        {data.exchange_connected ? 'CONNECTED' : 'NOT CONNECTED'}
+                      <Badge tone={data.account_connected ? 'green' : 'amber'}>
+                        {data.account_connected ? 'AUTHENTICATED' : 'ACCOUNT UNAVAILABLE'}
                       </Badge>
                     </div>
                     <div className="settings-row">
@@ -977,7 +1091,17 @@ function Workspace({ screen }: { screen: string }) {
                         <strong>{c.rule}</strong>
                         <p>{c.detail}</p>
                       </div>
-                      <Badge tone={c.status === 'PASSED' ? 'green' : 'red'}>{c.status}</Badge>
+                      <Badge
+                        tone={
+                          c.status === 'PASSED'
+                            ? 'green'
+                            : c.status === 'FAILED'
+                              ? 'red'
+                              : 'neutral'
+                        }
+                      >
+                        {c.status}
+                      </Badge>
                     </div>
                   ))
                 ) : (
@@ -1015,12 +1139,14 @@ function Workspace({ screen }: { screen: string }) {
 }
 
 function Exposure({ data }: { data: Snapshot }) {
-  const current = data.account ? (data.account.exposure / data.account.equity) * 100 : 0;
+  const available =
+    data.account?.exposure != null && data.account.equity != null && data.account.equity > 0;
+  const current = available ? (data.account!.exposure! / data.account!.equity!) * 100 : 0;
   const utilization = (current / data.risk_config.max_exposure_pct) * 100;
   return (
     <>
       <div className="exposure-values">
-        <strong>{data.account ? current.toFixed(2) + '%' : 'Unavailable'}</strong>
+        <strong>{available ? current.toFixed(2) + '%' : 'Unavailable'}</strong>
         <span>of {data.risk_config.max_exposure_pct}% maximum exposure</span>
       </div>
       <div className="progress-track">
@@ -1028,14 +1154,18 @@ function Exposure({ data }: { data: Snapshot }) {
       </div>
       <div className="progress-labels">
         <span>0%</span>
-        <span>{utilization.toFixed(1)}% of limit used</span>
+        <span>
+          {available
+            ? `${utilization.toFixed(1)}% of limit used`
+            : 'Awaiting verified account exposure'}
+        </span>
       </div>
     </>
   );
 }
 function Positions({ data, select }: { data: Snapshot; select: (v: unknown) => void }) {
-  if (data.mode === 'testnet')
-    return <Empty text="Position data unavailable in read-only Testnet mode" />;
+  if (data.mode === 'testnet' && !data.account_connected && !data.account_updated_at)
+    return <Empty text="Position data unavailable: authenticated account access is required" />;
   if (!data.positions.length) return <Empty text="No open positions" />;
   return (
     <div className="table-wrap">
@@ -1082,12 +1212,22 @@ function Positions({ data, select }: { data: Snapshot; select: (v: unknown) => v
               <td>{p.quantity}</td>
               <td>{money(p.entry_price)}</td>
               <td>{money(p.mark_price)}</td>
-              <td className={p.unrealized_pnl >= 0 ? 'positive' : 'negative'}>
+              <td
+                className={
+                  p.unrealized_pnl == null
+                    ? 'muted'
+                    : p.unrealized_pnl >= 0
+                      ? 'positive'
+                      : 'negative'
+                }
+              >
                 {signed(p.unrealized_pnl)}
               </td>
               <td>{money(p.stop_loss)}</td>
               <td>
-                <Badge tone="green">{p.protection}</Badge>
+                <Badge tone={p.protection === 'NOT VERIFIED' ? 'amber' : 'green'}>
+                  {p.protection}
+                </Badge>
               </td>
             </tr>
           ))}
@@ -1155,6 +1295,12 @@ function Orders({
   });
   const items = orders.data?.items || [],
     total = orders.data?.total || 0;
+  if (data.mode === 'testnet' && !data.account_connected && !data.account_updated_at)
+    return (
+      <Panel title="Order history">
+        <Empty text="Order data unavailable: authenticated account access is required" />
+      </Panel>
+    );
   return (
     <Panel
       title={openOnly ? 'Open orders' : 'Order history'}
@@ -1258,7 +1404,14 @@ function Orders({
                     <Badge tone={o.status === 'FILLED' ? 'green' : 'amber'}>{o.status}</Badge>
                   </td>
                   <td>
-                    <button className="text-link" onClick={() => inspect(o.correlation_id)}>
+                    <button
+                      className="text-link"
+                      onClick={() =>
+                        o.correlation_id.startsWith('exchange:')
+                          ? select(o)
+                          : inspect(o.correlation_id)
+                      }
+                    >
                       <Eye size={14} />
                       Inspect
                     </button>

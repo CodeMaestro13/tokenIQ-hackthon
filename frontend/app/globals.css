@@ -1,4 +1,26 @@
 @import 'tailwindcss';
+.execution-preflight {
+  margin: 0 22px 18px;
+  padding: 12px;
+  border: 1px solid #4c3a22;
+  background: #221e18;
+  border-radius: 5px;
+}
+.execution-preflight p {
+  font-size: 10px;
+  line-height: 1.7;
+  margin: 10px 0;
+  color: #c6aa80;
+}
+.evaluation-summary {
+  padding: 0 22px 20px;
+}
+.evaluation-summary > .explanation {
+  margin: 12px 0;
+}
+.evaluation-summary dl {
+  font-size: 10px;
+}
 .log-filters {
   display: flex;
   gap: 8px;

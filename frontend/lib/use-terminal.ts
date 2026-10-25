@@ -30,7 +30,7 @@ export function useTerminal() {
           dirty = false;
           const snapshot = await api<Snapshot>('/api/snapshot');
           if (!disposed) {
-            lastSequence = Math.max(lastSequence, snapshot.sequence);
+            lastSequence = snapshot.sequence;
             client.setQueryData(['snapshot'], snapshot);
             setConnection('Connected');
           }
@@ -47,6 +47,7 @@ export function useTerminal() {
       socket = new WebSocket(base.replace(/^http/, 'ws') + '/ws/trading');
       socket.onopen = () => {
         attempt = 0;
+        lastSequence = 0;
         setConnection('Connected');
         void refresh();
       };

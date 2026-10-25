@@ -69,8 +69,8 @@ export default function MarketChart({ data }: { data: Snapshot }) {
   useEffect(() => {
     if (!chartRef.current || !series.current) return;
     series.current.setData(data.candles.map((c) => ({ ...c, time: c.time as UTCTimestamp })));
-    fast.current.setData(ema(data.candles, data.config.fast_period));
-    slow.current.setData(ema(data.candles, data.config.slow_period));
+    fast.current.setData(data.indicators?.fast || ema(data.candles, data.config.fast_period));
+    slow.current.setData(data.indicators?.slow || ema(data.candles, data.config.slow_period));
     volume.current.setData(
       data.candles.map((c) => ({
         time: c.time,
@@ -93,11 +93,13 @@ export default function MarketChart({ data }: { data: Snapshot }) {
         })),
     );
     const lines = data.positions
+      .filter((p) => p.symbol === data.config.symbol)
       .flatMap((p) => [
         { price: p.entry_price, color: '#38bdf8', title: 'Entry' },
         { price: p.stop_loss, color: '#ef6375', title: 'Stop loss' },
         { price: p.take_profit, color: '#10b981', title: 'Take profit' },
       ])
+      .filter((l) => l.price != null && Number.isFinite(l.price))
       .map((l) =>
         series.current.createPriceLine({
           ...l,

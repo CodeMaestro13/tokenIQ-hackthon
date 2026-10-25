@@ -66,6 +66,6 @@ Event envelopes contain ID, increasing sequence, UTC timestamp, type, severity, 
 
 ## Current delivery decision
 
-The user explicitly chose **Leave Testnet execution disabled for now** during implementation. Demo trading and a read-only Testnet adapter are in scope for this delivery. Genuine Testnet order execution, exchange-native protection verification, partial-fill reconciliation, and authentic captured-event replay remain gated follow-up work. No genuine Testnet fills are claimed.
+The user initially chose read-only Testnet mode, then explicitly authorized **Enable genuine Testnet automated orders**. The current code implements protected India Testnet execution, risk preflight, 1x leverage, native reduce-only exits, persisted client-ID recovery, partial-fill handling and wallet-ledger risk accounting. A genuine fill/protection lifecycle has not yet been verified: the current account/risk configuration blocks BTC entry. Authentic exchange replay remains pending a verified execution session. Global and production execution remain disabled.
 
 Reference documentation: [Delta India API](https://docs.delta.exchange/), [Delta Global API](https://docs-global.delta.exchange/).

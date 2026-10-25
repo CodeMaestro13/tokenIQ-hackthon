@@ -96,7 +96,7 @@ def test_testnet_never_falls_back(tmp_path):
     assert engine.candles==[]
     assert engine.orders==[]
     assert not engine.snapshot()['execution_enabled']
-    with pytest.raises(ValueError,match='execution locked'):
+    with pytest.raises(ValueError,match='Account data unavailable'):
         run(engine.start())
     engine.storage.db.close()
 

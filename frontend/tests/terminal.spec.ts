@@ -1,4 +1,13 @@
 import { test, expect } from '@playwright/test';
+test.beforeEach(async ({ page }) => {
+  const alternate = process.env.E2E_API_URL;
+  if (alternate)
+    await page.route('http://127.0.0.1:8000/api/**', async (route) => {
+      const original = new URL(route.request().url());
+      const response = await route.fetch({ url: alternate + original.pathname + original.search });
+      await route.fulfill({ response });
+    });
+});
 test('demo lifecycle and route navigation', async ({ page }) => {
   await page.goto('/risk');
   await expect(page.getByText('SIMULATED DATA — DEMO MODE')).toBeVisible();

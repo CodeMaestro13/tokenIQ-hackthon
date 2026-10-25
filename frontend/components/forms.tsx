@@ -4,6 +4,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import type { Snapshot, Config, Risk } from '@/lib/types';
 import { Button } from './ui/button';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '@/lib/api';
 const schema = z
   .object({
     symbol: z.string().min(1),
@@ -27,6 +29,11 @@ export function StrategyForm({
   save: (c: Config) => Promise<void>;
   busy: boolean;
 }) {
+  const markets = useQuery({
+    queryKey: ['markets', data.mode],
+    queryFn: () => api<{ symbol: string; contract_value: string }[]>('/api/markets'),
+    staleTime: 60000,
+  });
   const {
     register,
     handleSubmit,
@@ -38,6 +45,13 @@ export function StrategyForm({
         Trading instrument
         <select {...register('symbol')}>
           <option>{data.config.symbol}</option>
+          {markets.data
+            ?.filter((m) => m.symbol !== data.config.symbol)
+            .map((m) => (
+              <option key={m.symbol} value={m.symbol}>
+                {m.symbol} · {m.contract_value} units/contract
+              </option>
+            ))}
         </select>
       </label>
       <label>
@@ -105,7 +119,7 @@ export function RiskForm({
         />
       </label>
       <label>
-        Daily realized loss limit · USD
+        Daily loss limit · USD (Testnet includes fees and funding debits)
         <input
           type="number"
           min="0.01"

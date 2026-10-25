@@ -10,12 +10,12 @@ export type Candle = {
 export type Config = Required<components['schemas']['StrategyConfig']>;
 export type Risk = Required<components['schemas']['RiskConfig']>;
 export type Account = {
-  equity: number;
-  available_margin: number;
-  unrealized_pnl: number;
-  realized_pnl: number;
-  daily_loss: number;
-  exposure: number;
+  equity: number | null;
+  available_margin: number | null;
+  unrealized_pnl: number | null;
+  realized_pnl: number | null;
+  daily_loss: number | null;
+  exposure: number | null;
   currency: string;
   active_positions: number;
 };
@@ -24,11 +24,11 @@ export type Position = {
   symbol: string;
   side: string;
   quantity: number;
-  entry_price: number;
-  mark_price: number;
-  unrealized_pnl: number;
-  stop_loss: number;
-  take_profit: number;
+  entry_price: number | null;
+  mark_price: number | null;
+  unrealized_pnl: number | null;
+  stop_loss: number | null;
+  take_profit: number | null;
   updated_at: string;
   strategy: string;
   protection: string;
@@ -37,8 +37,8 @@ export type Order = {
   id: string;
   symbol: string;
   side: string;
-  quantity: number;
-  filled_quantity: number;
+  quantity: number | null;
+  filled_quantity: number | null;
   average_fill_price: number | null;
   type: string;
   status: string;
@@ -77,6 +77,9 @@ export type TradingEvent = {
   payload: Record<string, unknown>;
 };
 export type Snapshot = {
+  session_id: string;
+  market_stale?: boolean;
+  indicators?: { fast: { time: number; value: number }[]; slow: { time: number; value: number }[] };
   mode: 'demo' | 'testnet';
   as_of: string;
   last_update: string | null;
@@ -93,5 +96,21 @@ export type Snapshot = {
   exchange_connected: boolean;
   error: string | null;
   execution_enabled: boolean;
+  execution_preflight?: { ready: boolean; checks: Check[]; reason: string } | null;
+  execution_error?: string | null;
   warming_up: boolean;
+  account_connected: boolean;
+  account_error: string | null;
+  account_updated_at: string | null;
+  strategy_monitoring: boolean;
+  latest_evaluation: Pick<
+    Decision,
+    | 'side'
+    | 'fast_ema'
+    | 'slow_ema'
+    | 'previous_fast_ema'
+    | 'previous_slow_ema'
+    | 'price'
+    | 'candle_time'
+  > | null;
 };

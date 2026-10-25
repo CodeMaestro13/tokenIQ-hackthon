@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field, model_validator
 
 
 class StrategyConfig(BaseModel):
-    symbol: str = 'BTCUSD'
+    symbol: str = Field(default='BTCUSD', pattern=r'^[A-Z0-9_]{2,30}$')
     timeframe: Literal['1m', '5m', '15m'] = '1m'
     fast_period: int = Field(default=20, ge=2, le=100)
     slow_period: int = Field(default=50, ge=3, le=200)

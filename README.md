@@ -9,9 +9,9 @@ An explainable algorithmic trading terminal: **market data → EMA analysis → 
 - Trade Decision Inspector with signal-time values, previous/current EMA relationships, deterministic explanations, individual risk checks, and related orders.
 - Candlestick/volume charts, indicator overlays, execution markers, entry/SL/TP lines, exposure analytics, filtered server-paginated orders, and structured event drawers.
 - WebSocket reconnection with deduplicated, serialized REST snapshot recovery; stale data is visibly labeled.
-- Read-only Delta Testnet market adapter and authenticated connection test.
+- India Testnet candle monitoring, EMA observations, protected automated execution, authenticated account imports, and start-preflight diagnostics.
 
-**Testnet execution is disabled by explicit user choice.** No exchange order submission is implemented or claimed. Demo order IDs begin with `demo_`. No authentic exchange-event replay is bundled because no authenticated Testnet session has been captured.
+**India Testnet automated execution is implemented following explicit user authorization.** Start requires saved risk limits and passing server preflight checks. No genuine exchange fill has yet been verified here: BTC's minimum contract currently exceeds the configured exposure allowance. Demo IDs begin with `demo_`; Testnet IDs come from Delta. Global and production execution are disabled.
 
 ## Local setup (Windows PowerShell)
 
@@ -45,7 +45,7 @@ On macOS/Linux, use `.venv/bin/python` and `npm` instead of the Windows executab
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `ALGOLENS_MODE` | `demo` | `demo` or read-only `testnet`; restart required |
+| `ALGOLENS_MODE` | `demo` | `demo` or `testnet`; restart required |
 | `ALGOLENS_DB` | `algolens-{mode}.db` | Optional SQLite path; cannot reuse a database across modes |
 | `FRONTEND_ORIGIN` | `http://localhost:3000` | Comma-separated allowed frontend origins |
 | `DELTA_TESTNET_URL` | empty | Explicit regional Testnet URL |
@@ -56,13 +56,30 @@ On macOS/Linux, use `.venv/bin/python` and `npm` instead of the Windows executab
 
 No credentials are required for Demo Mode. Do not commit `.env` or enter exchange secrets in the browser.
 
-### Read-only Testnet setup
+### Testnet setup
 
 The [official India documentation](https://docs.delta.exchange/) identifies `https://cdn-ind.testnet.deltaex.org` as the India Testnet host. The [official Delta Python client](https://github.com/delta-exchange/python-rest-client) uses `https://testnet-api.delta.exchange` for Global Testnet. Verify your account region and current documentation before configuring credentials. Production hosts are rejected by the adapter.
 
-Set mode and host in `.env`, restart FastAPI, and use **Settings → Test connection**. Public candles can load without credentials; the connection test additionally verifies authenticated wallet access. The UI keeps account/position trading metrics unavailable because execution and full account normalization are not enabled. A successful connection test does not enable trading.
+Set mode and host in `.env`, restart FastAPI, and use **Settings → Test connection**. Public candles can load without credentials; private wallet, position, active-order and recent order-history reads require authentication. Market connectivity and account authentication have separate indicators. The backend imports available USD wallet metrics, positions and orders without inventing missing P&L values. Authentication errors such as a rejected IP whitelist are shown in the frontend. The history import contains active orders plus the latest 50 exchange history records; it is not a complete exchange ledger.
 
-Before a later Testnet trading release, implement and verify contract sizing/ticks, exchange-native protective orders, actual account/position reconciliation, partially filled orders, persisted client-order IDs with timeout lookup, daily realized loss including account fills, and restart recovery. No flag currently bypasses this gate.
+When stopped, Testnet mode publishes HOLD/BUY/SELL observations without requesting orders. Start enables execution after server preflight passes. Only new completed candles after Start can trigger trades. The engine sets and verifies 1x order leverage, persists a client order ID before submitting, reconciles the actual fill, and places separate native reduce-only stop-market SL/TP orders for filled quantity. This product does not advertise combined bracket orders. Protection failure triggers ERROR and a failsafe reduce-only close. Native exits remain hosted at Delta after Stop; the backend must run to cancel sibling exits and reconcile outcomes.
+
+Preflight checks authentication, saved limits, contract sizing, fresh candles, exposure including a 2% notional buffer, full-notional collateral, daily loss, concurrent positions, outstanding orders, and unresolved submissions. A successful connection test never starts trading. Partial fills are protected only for their filled quantity; any remaining entry quantity must reach a confirmed terminal state first.
+
+Daily Testnet loss conservatively sums negative USD trading-ledger debits (cashflow, commissions, funding, settlement and liquidation fees) for the UTC day. Profits do not replenish it. Session net realized cashflow sums trading entries since Start and excludes deposits/transfers. Ledger pagination must complete before entries are allowed. Unsupported or missing financial values remain unavailable.
+
+The execution path is tested against a fake exchange, including timeout lookup without POST retry, partial fills, protection failure, opposite-signal exits, and restart reconciliation. Genuine entry/fill/protection behavior still needs a supervised Testnet run within approved limits. A $100 account with 20% maximum exposure allows $20 notional; a roughly $80 BTC contract plus buffer requires roughly $408 equity at that limit. The application never raises limits automatically.
+
+### Start genuine India Testnet automation
+
+1. Verify Settings connection status after loading local credentials.
+2. Save chosen risk limits in Risk Management.
+3. Select a supported USD linear perpetual and quantity in Strategy Control. Contract multipliers appear in the instrument selector.
+4. Resolve failing preflight checks by adding Testnet funds, choosing a smaller-notional instrument, or deliberately choosing different limits.
+5. Click Start strategy. HOLD is normal; there is no forced trade on startup.
+6. Inspect actual exchange IDs, fills and native protection acknowledgments. Stop leaves positions open; emergency stop also cancels eligible pending entries.
+
+Unresolved persisted submissions block new entries. Restart leaves automation stopped while owned positions/orders reconcile. An owned position whose protection cannot be established may be failsafe-closed. Use one worker and one operator; do not combine this with other automation on the same account.
 
 ## Architecture
 
@@ -133,7 +150,7 @@ npm.cmd run test:e2e
 
 The end-to-end tests use an installed browser, avoiding an additional browser download. For Edge, set `$env:PLAYWRIGHT_CHANNEL='msedge'`.
 
-Tests cover EMA parity, warm-up, crossovers, invalid configuration, risk rejection, persisted audit data, restart/stop semantics, mode isolation, API controls, WebSocket connection, route rendering, and mobile overflow. Exchange execution scenarios are deferred with Testnet execution.
+Tests cover EMA parity, crossovers, risk policy, SQLite state, stop/restart behavior, exact signed request bodies, native protection, partial fills, ambiguous submissions, failsafe closing, and opposite-signal exits against a fake exchange. Genuine Testnet fills have not yet been verified.
 
 ## Hackathon demonstration
 
@@ -148,6 +165,8 @@ Tests cover EMA parity, warm-up, crossovers, invalid configuration, risk rejecti
 9. Optionally lower a risk limit and demonstrate a rejected decision on a later crossover.
 
 See [the implementation plan](ALGOLENS_IMPLEMENTATION_PLAN.md) for phases and deferred Testnet acceptance criteria.
+
+For a presentation script, mathematical explanation, risk examples and honest capability boundaries, see [the judges' strategy guide](JUDGES_STRATEGY_GUIDE.md).
 
 ## Attribution
 

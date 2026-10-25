@@ -1,0 +1,6 @@
+.next
+node_modules
+test-results
+playwright-report
+package-lock.json
+lib/api.generated.ts

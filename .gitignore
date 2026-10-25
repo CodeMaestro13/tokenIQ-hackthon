@@ -6,7 +6,6 @@ __pycache__/
 *.db
 *.db-shm
 *.db-wal
-.env
 .env.local
 playwright-report/
 test-results/

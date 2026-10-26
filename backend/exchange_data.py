@@ -59,6 +59,8 @@ def normalize(wallet, positions, orders, updated_at):
             'status': status, 'timestamp': timestamp(o.get('created_at')) or updated_at,
             'correlation_id': 'exchange:' + key, 'reduce_only': bool(o.get('reduce_only')),
             'reason': 'Imported exchange order; not submitted by AlgoLens', 'mode': 'testnet',
+            'paid_commission': number(o.get('paid_commission')),
+            'updated_at': timestamp(o.get('updated_at')) or timestamp(o.get('created_at')) or updated_at,
         }
     # Present only explicit USD wallet values. Do not combine currencies or invent session P&L.
     usd = next((w for w in wallet.get('result', []) if w.get('asset_symbol') == 'USD'), None)

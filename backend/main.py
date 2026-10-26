@@ -78,6 +78,13 @@ def snapshot():
     return engine.snapshot()
 
 
+@app.get('/api/trade-results')
+async def trade_results():
+    return {'mode':engine.mode,'as_of':engine.account_updated_at if engine.mode=='testnet' else engine.last_update,
+            'account_connected':engine.account_connected,'account_error':engine.account_error,
+            **engine.trade_results()}
+
+
 @app.get('/api/account')
 @app.get('/api/account/balance')
 def account():

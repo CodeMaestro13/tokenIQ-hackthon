@@ -66,6 +66,6 @@ Event envelopes contain ID, increasing sequence, UTC timestamp, type, severity, 
 
 ## Current delivery decision
 
-The user initially chose read-only Testnet mode, then explicitly authorized **Enable genuine Testnet automated orders**. The current code implements protected India Testnet execution, risk preflight, 1x leverage, native reduce-only exits, persisted client-ID recovery, partial-fill handling and wallet-ledger risk accounting. A genuine fill/protection lifecycle has not yet been verified: the current account/risk configuration blocks BTC entry. Authentic exchange replay remains pending a verified execution session. Global and production execution remain disabled.
+The user initially chose read-only mode, then explicitly authorized genuine India Testnet automated orders. The code implements risk preflight, 1x leverage, native reduce-only exits, persisted client-ID recovery, partial-fill handling and wallet-ledger accounting. A genuine BTCUSD entry and opposite-signal close are now reconciled, including protective-order acknowledgments and cancellations. Overview/Order History show gross P&L, actual commissions and net P&L for matched closed trades. Native stop-trigger and exceptional recovery behaviors are not all exchange-verified. A packaged replay remains deferred. Global and production execution remain disabled.
 
 Reference documentation: [Delta India API](https://docs.delta.exchange/), [Delta Global API](https://docs-global.delta.exchange/).

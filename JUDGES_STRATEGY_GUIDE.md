@@ -13,9 +13,9 @@ AlgoLens uses a deterministic **EMA 20/50 Crossover** strategy. It is a rule-bas
 | Balances / positions / orders | Simulated account and audit history | Read-only imports when exchange authentication succeeds |
 | Explanation | Actual strategy inputs and simulated execution results | Actual candle/EMA inputs, explicitly labeled observed signals |
 
-Updated credentials now authenticate successfully. At verification the account had $100 equity and available margin. BTC preflight is blocked by unsaved risk limits and a roughly $82 minimum contract including a price buffer, exceeding the default $20 exposure allowance. Limits have not been raised automatically. A public chart alone does not prove private authentication.
+Updated credentials authenticate successfully. The user subsequently saved their chosen risk policy and ran a genuine BTCUSD strategy round trip. A public chart alone does not prove private authentication, and passing software tests does not prove profitability.
 
-No genuine AlgoLens Testnet trade has been executed or verified. Previously placed exchange orders, if imported, are explicitly identified as imported orders rather than AlgoLens executions.
+A genuine AlgoLens Testnet trade is now verified: one 0.001 BTC contract entered at $80,377.50 and exited at $80,417.50. Gross P&L was +$0.04, paid commissions totaled $0.08538216, and net trade P&L was -$0.04538216. Use **Overview → Closed trade results** or the same panel in Order History to present the actual entry/exit and costs. Do not call the positive gross price result a net profit. Funding is excluded from this trade report.
 
 ## A 90-second presentation script
 
@@ -27,7 +27,7 @@ No genuine AlgoLens Testnet trade has been executed or verified. Previously plac
 >
 > The Decision Inspector shows the exact previous and current EMA values, candle timestamp, risk results, and order outcome. All explanations come from those recorded values and fixed rules. We do not invent a confidence score or claim profitability.
 >
-> India Testnet Mode observes real exchange candles. Passing preflight and clicking Start enables genuine automated orders on new crossovers. Our current account configuration does not pass the exposure gate yet, so separately labeled Demo Mode demonstrates the fill lifecycle until that is resolved. Stopping automation does not imply that a position is closed.
+> India Testnet Mode observes real exchange candles. Passing preflight and clicking Start enables genuine automated orders on new crossovers. We have reconciled a genuine entry and opposite-signal close. Our results panel deliberately separates gross P&L from fees and net P&L: the first trade had a positive gross result but a small net loss after fees. Stopping automation does not imply that a position is closed.
 
 ## How EMA works
 
@@ -134,6 +134,6 @@ Genuine execution uses verified 1x order leverage and separate native reduce-onl
 
 **Does it guarantee profit?** No. EMA signals lag price and can whipsaw in sideways markets. Real execution introduces fees, funding, slippage, latency and liquidation risk that the educational simulator does not model.
 
-**Is automated Delta execution verified?** The implementation and fake-exchange tests cover supported India Testnet linear perpetuals. Real authentication is verified. A genuine entry/fill/protection lifecycle has not yet been verified because the current account/risk configuration blocks entry. Do not present mock tests as exchange fills.
+**Is automated Delta execution verified?** A genuine entry, native protective-order acknowledgments, opposite-signal exit and sibling-order cancellations have been reconciled. Native stop-trigger behavior and every exceptional recovery scenario have not all been tested against the exchange. Mock tests and real exchange observations are separate evidence.
 
 **What was tested?** EMA seeding and warm-up, both crossing directions, no-signal behavior, invalid inputs, risk rejection, Demo fills, stop/restart behavior, data isolation, read-only monitoring without order creation, private-data normalization, and explicit authentication failures. These tests establish implementation behavior, not strategy profitability.

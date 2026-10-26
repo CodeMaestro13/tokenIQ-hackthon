@@ -11,7 +11,7 @@ An explainable algorithmic trading terminal: **market data → EMA analysis → 
 - WebSocket reconnection with deduplicated, serialized REST snapshot recovery; stale data is visibly labeled.
 - India Testnet candle monitoring, EMA observations, protected automated execution, authenticated account imports, and start-preflight diagnostics.
 
-**India Testnet automated execution is implemented following explicit user authorization.** Start requires saved risk limits and passing server preflight checks. No genuine exchange fill has yet been verified here: BTC's minimum contract currently exceeds the configured exposure allowance. Demo IDs begin with `demo_`; Testnet IDs come from Delta. Global and production execution are disabled.
+**India Testnet automated execution is implemented following explicit user authorization.** Start requires saved risk limits and passing server preflight checks. A genuine BTCUSD entry, native SL/TP acknowledgments, and opposite-crossover exit have now been observed and reconciled. This does not establish profitability or verify every failure/stop-trigger scenario. Demo IDs begin with `demo_`; Testnet IDs come from Delta. Global and production execution are disabled.
 
 ## Local setup (Windows PowerShell)
 
@@ -68,7 +68,13 @@ Preflight checks authentication, saved limits, contract sizing, fresh candles, e
 
 Daily Testnet loss conservatively sums negative USD trading-ledger debits (cashflow, commissions, funding, settlement and liquidation fees) for the UTC day. Profits do not replenish it. Session net realized cashflow sums trading entries since Start and excludes deposits/transfers. Ledger pagination must complete before entries are allowed. Unsupported or missing financial values remain unavailable.
 
-The execution path is tested against a fake exchange, including timeout lookup without POST retry, partial fills, protection failure, opposite-signal exits, and restart reconciliation. Genuine entry/fill/protection behavior still needs a supervised Testnet run within approved limits. A $100 account with 20% maximum exposure allows $20 notional; a roughly $80 BTC contract plus buffer requires roughly $408 equity at that limit. The application never raises limits automatically.
+The execution path is tested against a fake exchange, including timeout lookup without POST retry, partial fills, protection failure, opposite-signal exits, and restart reconciliation. One genuine Testnet round trip is also verified; native stop-trigger fills and exceptional recovery scenarios have not all been exercised against the exchange. A $100 account with 20% maximum exposure allows $20 notional; a roughly $80 BTC contract plus buffer requires roughly $408 equity at that limit. The application never raises limits automatically.
+
+### Presenting profit and loss
+
+Overview and Order History both include **Closed trade results**. The panel shows matched strategy entry/exit fills, actual contract multiplier and quantity, gross realized trade P&L, paid entry/exit commissions, and net trade P&L. Net trade P&L excludes funding and external transfers; it is separate from session wallet cashflow. Unknown commissions leave net values unavailable. Unrealized P&L continues to show only positions that remain open.
+
+The report uses FIFO matching of AlgoLens-owned fills from available order history. Fees are proportionally allocated when only part of an entry closes. Cancelled/unfilled protective orders are not counted as trades. The backend endpoint is `GET /api/trade-results`.
 
 ### Start genuine India Testnet automation
 
@@ -150,7 +156,7 @@ npm.cmd run test:e2e
 
 The end-to-end tests use an installed browser, avoiding an additional browser download. For Edge, set `$env:PLAYWRIGHT_CHANNEL='msedge'`.
 
-Tests cover EMA parity, crossovers, risk policy, SQLite state, stop/restart behavior, exact signed request bodies, native protection, partial fills, ambiguous submissions, failsafe closing, and opposite-signal exits against a fake exchange. Genuine Testnet fills have not yet been verified.
+Tests cover EMA parity, crossovers, risk policy, SQLite state, stop/restart behavior, exact signed request bodies, native protection, partial fills, ambiguous submissions, failsafe closing, and opposite-signal exits against a fake exchange. Reporting tests additionally cover contract multipliers, partial fee allocation, unknown fees, short trades, unfilled orders and gross/net separation. A genuine Testnet round trip has also been reconciled from exchange records.
 
 ## Hackathon demonstration
 

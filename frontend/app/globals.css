@@ -1,4 +1,32 @@
 @import 'tailwindcss';
+.pnl-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  padding: 0 22px 20px;
+}
+.pnl-metrics .metric-value {
+  font-size: 21px;
+}
+.trade-reference {
+  display: block;
+  color: #8293aa;
+  font-size: 9px;
+  line-height: 1.8;
+  margin-top: 8px;
+}
+.closed-trades > .table-note {
+  padding: 12px 22px;
+  margin: 0;
+}
+@media (max-width: 700px) {
+  .pnl-metrics {
+    grid-template-columns: 1fr;
+  }
+  .pnl-metrics .metric-value {
+    font-size: 22px;
+  }
+}
 .execution-preflight {
   margin: 0 22px 18px;
   padding: 12px;

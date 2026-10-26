@@ -37,6 +37,7 @@ class TestnetTrader:
                 and (p.get('quoting_asset') or {}).get('symbol') == 'USD'
                 and (number(p.get('contract_value')) or 0) > 0 and (number(p.get('tick_size')) or 0) > 0):
             raise ValueError('Execution supports live USD-quoted, USD-settled linear perpetual contracts only')
+        self.e.storage.put('product',str(p['id']),{'symbol':p['symbol'],'contract_value':p['contract_value']})
         await self.refresh_ledger()
         await self.reconcile()
 

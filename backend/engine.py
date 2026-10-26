@@ -11,6 +11,7 @@ from .risk_manager import validate
 from .delta_client import DeltaClient
 from .exchange_data import normalize, connection_error
 from .testnet_trader import TestnetTrader
+from .trade_results import report
 
 
 def now():
@@ -133,6 +134,15 @@ class Engine:
                 'indicators': {'fast': [{'time': c['time'], 'value': v} for c, v in zip(self.candles, ema([c['close'] for c in self.candles], self.config.fast_period)) if v is not None][-300:],
                                'slow': [{'time': c['time'], 'value': v} for c, v in zip(self.candles, ema([c['close'] for c in self.candles], self.config.slow_period)) if v is not None][-300:]},
                 'warming_up': len(self.candles) < self.config.slow_period + 1}
+
+    def trade_results(self):
+        if self.mode=='demo':
+            return report([{**o,'paid_commission':0} for o in self.orders],{self.config.symbol:'0.001'})
+        products={p['symbol']:p['contract_value'] for p in self.storage.all('product')}
+        if self.trader and self.trader.product:
+            products[self.trader.product['symbol']]=self.trader.product['contract_value']
+        owned_ids={str(i['order_id']) for i in self.storage.all('live_intent') if i.get('order_id')}
+        return report(self.orders,products,owned_ids)
 
     async def start(self):
         async with self.lock:

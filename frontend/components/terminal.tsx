@@ -37,6 +37,7 @@ import { api } from '@/lib/api';
 import { useUI, usePreferences } from '@/lib/store';
 import type { Snapshot, Order, TradingEvent, Decision } from '@/lib/types';
 import MarketChart from './chart';
+import TradeResults from './trade-results';
 import { Button } from './ui/button';
 import { StrategyForm, RiskForm } from './forms';
 
@@ -560,6 +561,7 @@ function Workspace({ screen }: { screen: string }) {
                   })}
                 </div>
               )}
+              {(screen === 'dashboard' || screen === 'orders') && <TradeResults data={data} />}
               {screen === 'dashboard' && (
                 <>
                   <div className="dashboard-main">
